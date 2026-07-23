@@ -59,6 +59,7 @@ describe("arcee provider plugin", () => {
       choiceId: "arceeai-api-key",
       optionKey: "arceeaiApiKey",
       credentialProvider: "arcee",
+      modelRef: "arcee/trinity-large-thinking",
       baseUrl: "https://api.arcee.ai/api/v1",
       alias: "Arcee AI",
       catalogIds: ["trinity-mini", "trinity-large-preview", "trinity-large-thinking"],
@@ -71,6 +72,7 @@ describe("arcee provider plugin", () => {
       choiceId: "arceeai-openrouter",
       optionKey: "openrouterApiKey",
       credentialProvider: "openrouter",
+      modelRef: "openrouter/arcee-ai/trinity-large-thinking",
       baseUrl: "https://openrouter.ai/api/v1",
       alias: "Arcee AI (OpenRouter)",
       catalogIds: ["arcee-ai/trinity-large-preview", "arcee-ai/trinity-large-thinking"],
@@ -79,7 +81,7 @@ describe("arcee provider plugin", () => {
       applyPublicConfig: applyArceeOpenRouterConfig,
     },
   ])("$methodId setup", (route) => {
-    const modelRef = "arcee/trinity-large-thinking";
+    const modelRef = route.modelRef;
     const profileId = `${route.credentialProvider}:default`;
 
     async function registeredMethod() {
@@ -145,13 +147,13 @@ describe("arcee provider plugin", () => {
         },
       };
       const cfg: OpenClawConfig = result.configPatch ?? {};
-      const order = resolveAuthProfileOrder({ cfg, store, provider: "arcee" });
+      const order = resolveAuthProfileOrder({ cfg, store, provider: route.credentialProvider });
       expect(order).toContain(profileId);
       expect(order).toContain(`${route.credentialProvider}:other`);
       expect(order).not.toContain(
         route.credentialProvider === "arcee" ? "openrouter:other" : "arcee:other",
       );
-      expect(result.defaultModel).toBe("arcee/trinity-large-thinking");
+      expect(result.defaultModel).toBe(modelRef);
     });
 
     it.each([
@@ -200,11 +202,11 @@ describe("arcee provider plugin", () => {
         interactive.configPatch,
         await onboard(nonInteractive),
       ]) {
-        expect(output?.models?.providers?.arcee).toMatchObject({
+        expect(output?.models?.providers?.[route.credentialProvider]).toMatchObject({
           baseUrl: route.baseUrl,
           api: "openai-completions",
         });
-        expect(output?.models?.providers?.arcee?.models?.map((model) => model.id)).toEqual(
+        expect(output?.models?.providers?.[route.credentialProvider]?.models?.map((model) => model.id)).toEqual(
           expectedIds,
         );
         expect(output?.agents?.defaults?.model).toEqual({ primary: modelRef });
@@ -215,7 +217,7 @@ describe("arcee provider plugin", () => {
 
     it("keeps later replace defaults independent of edits to generated rows", async () => {
       const first = await onboard({ models: { mode: "replace" } });
-      const generated = first.models?.providers?.arcee?.models?.[0];
+      const generated = first.models?.providers?.[route.credentialProvider]?.models?.[0];
       if (!generated) {
         throw new Error("Expected a generated Arcee model");
       }
@@ -227,7 +229,7 @@ describe("arcee provider plugin", () => {
 
       const later = await onboard({ models: { mode: "replace" } });
 
-      expect(later.models?.providers?.arcee?.models?.[0]?.cost.input).toBeCloseTo(originalCost);
+      expect(later.models?.providers?.[route.credentialProvider]?.models?.[0]?.cost.input).toBeCloseTo(originalCost);
     });
 
     it.each([
@@ -256,18 +258,18 @@ describe("arcee provider plugin", () => {
         models: {
           mode,
           providers: {
-            arcee: { baseUrl: route.baseUrl, models: [collision, authoredOnly] },
+            [route.credentialProvider]: { baseUrl: route.baseUrl, models: [collision, authoredOnly] },
             other: { baseUrl: "https://other.invalid/v1", models: [] },
           },
         },
       };
       const before = structuredClone(input);
       const output = await onboard(input);
-      expect(output.models?.providers?.arcee?.models?.slice(0, 2)).toEqual([
+      expect(output.models?.providers?.[route.credentialProvider]?.models?.slice(0, 2)).toEqual([
         collision,
         authoredOnly,
       ]);
-      expect(output.models?.providers?.arcee?.models?.map((model) => model.id)).toEqual([
+      expect(output.models?.providers?.[route.credentialProvider]?.models?.map((model) => model.id)).toEqual([
         route.collisionId,
         "operator-only",
         ...addedIds,
@@ -287,11 +289,11 @@ describe("arcee provider plugin", () => {
       expect(input).toEqual(before);
 
       const publicOutput = route.applyPublicConfig(input);
-      expect(publicOutput.models?.providers?.arcee?.models?.slice(0, 2)).toEqual([
+      expect(publicOutput.models?.providers?.[route.credentialProvider]?.models?.slice(0, 2)).toEqual([
         collision,
         authoredOnly,
       ]);
-      expect(publicOutput.models?.providers?.arcee?.models?.map((model) => model.id)).toEqual([
+      expect(publicOutput.models?.providers?.[route.credentialProvider]?.models?.map((model) => model.id)).toEqual([
         route.collisionId,
         "operator-only",
         ...route.addedIds,
@@ -306,10 +308,10 @@ describe("arcee provider plugin", () => {
       "keeps the public catalog helper eager in %s mode",
       (mode) => {
         const output = route.applyPublicConfig({ models: { mode } });
-        expect(output.models?.providers?.arcee?.models?.map((model) => model.id)).toEqual(
+        expect(output.models?.providers?.[route.credentialProvider]?.models?.map((model) => model.id)).toEqual(
           route.catalogIds,
         );
-        expect(output.models?.providers?.arcee).toMatchObject({
+        expect(output.models?.providers?.[route.credentialProvider]).toMatchObject({
           baseUrl: route.baseUrl,
           api: "openai-completions",
         });

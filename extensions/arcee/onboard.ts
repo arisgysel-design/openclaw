@@ -17,7 +17,7 @@ import {
 /** Default Arcee model ref for direct API setup. */
 export const ARCEE_DEFAULT_MODEL_REF = "arcee/trinity-large-thinking";
 /** Default Arcee model ref for OpenRouter setup. */
-export const ARCEE_OPENROUTER_DEFAULT_MODEL_REF = "arcee/trinity-large-thinking";
+export const ARCEE_OPENROUTER_DEFAULT_MODEL_REF = "openrouter/arcee-ai/trinity-large-thinking";
 
 const ARCEE_PRESET = {
   primaryModelRef: ARCEE_DEFAULT_MODEL_REF,
@@ -29,7 +29,7 @@ const ARCEE_PRESET = {
 
 const ARCEE_OPENROUTER_PRESET = {
   primaryModelRef: ARCEE_OPENROUTER_DEFAULT_MODEL_REF,
-  providerId: "arcee",
+  providerId: "openrouter",
   api: "openai-completions" as const,
   baseUrl: OPENROUTER_BASE_URL,
   aliases: [{ modelRef: ARCEE_OPENROUTER_DEFAULT_MODEL_REF, alias: "Arcee AI (OpenRouter)" }],
