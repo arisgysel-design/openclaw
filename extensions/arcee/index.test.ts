@@ -248,7 +248,11 @@ describe("arcee provider plugin", () => {
         maxTokens: 2345,
         cost: { input: 7, output: 9, cacheRead: 1, cacheWrite: 2 },
       };
-      const authoredOnly = { ...collision, id: "operator-only", name: "Authored only" };
+      const authoredOnly = {
+        ...collision,
+        id: route.credentialProvider === "openrouter" ? "vendor/operator-only" : "operator-only",
+        name: "Authored only",
+      };
       const input: OpenClawConfig = {
         auth: { profiles: { "other:default": { provider: "other", mode: "api_key" } } },
         agents: {
@@ -276,7 +280,7 @@ describe("arcee provider plugin", () => {
       ]);
       expect(
         output.models?.providers?.[route.credentialProvider]?.models?.map((model) => model.id),
-      ).toEqual([route.collisionId, "operator-only", ...addedIds]);
+      ).toEqual([route.collisionId, authoredOnly.id, ...addedIds]);
       expect(output.models?.providers?.other).toEqual(input.models?.providers?.other);
       expect(output.auth?.profiles?.["other:default"]).toEqual(
         input.auth?.profiles?.["other:default"],
@@ -299,7 +303,7 @@ describe("arcee provider plugin", () => {
         publicOutput.models?.providers?.[route.credentialProvider]?.models?.map(
           (model) => model.id,
         ),
-      ).toEqual([route.collisionId, "operator-only", ...route.addedIds]);
+      ).toEqual([route.collisionId, authoredOnly.id, ...route.addedIds]);
       expect(publicOutput.agents?.defaults?.model).toEqual(input.agents?.defaults?.model);
       expect(publicOutput.agents?.defaults?.models?.[modelRef]).toEqual(
         input.agents?.defaults?.models?.[modelRef],

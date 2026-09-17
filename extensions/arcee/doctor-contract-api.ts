@@ -2,7 +2,7 @@
 // releases stored an OpenRouter catalog under `models.providers.arcee`, so the
 // runtime could not use the accompanying `openrouter:default` credential.
 import type { OpenClawConfig } from "openclaw/plugin-sdk/config-contracts";
-import { asObjectRecord } from "openclaw/plugin-sdk/runtime-doctor";
+import { asObjectRecord } from "openclaw/plugin-sdk/runtime-doctor-migrations";
 
 const LEGACY_PROVIDER_PATH = "models.providers.arcee";
 const CANONICAL_PROVIDER_PATH = "models.providers.openrouter";
