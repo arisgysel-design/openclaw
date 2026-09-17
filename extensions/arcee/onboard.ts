@@ -35,6 +35,16 @@ const ARCEE_OPENROUTER_PRESET = {
   aliases: [{ modelRef: ARCEE_OPENROUTER_DEFAULT_MODEL_REF, alias: "Arcee AI (OpenRouter)" }],
 };
 
+function resolveArceeOpenRouterPreset(cfg: OpenClawConfig) {
+  const existing = cfg.models?.providers?.openrouter;
+  // OpenRouter is shared with other models; both setup paths retain its transport.
+  return {
+    ...ARCEE_OPENROUTER_PRESET,
+    api: existing?.api ?? ARCEE_OPENROUTER_PRESET.api,
+    baseUrl: existing?.baseUrl ?? ARCEE_OPENROUTER_PRESET.baseUrl,
+  };
+}
+
 /** Apply direct Arcee provider defaults to config. */
 export function applyArceeConfig(cfg: OpenClawConfig): OpenClawConfig {
   return applyProviderConfigWithModelCatalogPreset(cfg, {
@@ -46,7 +56,7 @@ export function applyArceeConfig(cfg: OpenClawConfig): OpenClawConfig {
 /** Apply OpenRouter-backed Arcee provider defaults to config. */
 export function applyArceeOpenRouterConfig(cfg: OpenClawConfig): OpenClawConfig {
   return applyProviderConfigWithModelCatalogPreset(cfg, {
-    ...ARCEE_OPENROUTER_PRESET,
+    ...resolveArceeOpenRouterPreset(cfg),
     catalogModels: buildArceeOpenRouterCatalogModels(),
   });
 }
@@ -60,7 +70,7 @@ export function applyArceeOnboardConfig(cfg: OpenClawConfig): OpenClawConfig {
 
 export function applyArceeOpenRouterOnboardConfig(cfg: OpenClawConfig): OpenClawConfig {
   return applyProviderConnectionConfig(cfg, {
-    ...ARCEE_OPENROUTER_PRESET,
+    ...resolveArceeOpenRouterPreset(cfg),
     catalogModels: buildArceeOpenRouterCatalogModels,
   });
 }

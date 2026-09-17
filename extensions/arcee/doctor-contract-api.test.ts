@@ -120,8 +120,106 @@ describe("Arcee doctor contract", () => {
     });
   });
 
+  it.each(["defaults", "entries", "list"] as const)(
+    "repairs every supported model selection in agents.%s before removing the legacy provider",
+    (scope) => {
+      const legacy = "arcee/trinity-large-thinking";
+      const canonical = "openrouter/arcee-ai/trinity-large-thinking";
+      const selection = {
+        primary: legacy,
+        fallbacks: ["arcee/trinity-large-preview", "other/model"],
+      };
+      const repaired = {
+        primary: canonical,
+        fallbacks: ["openrouter/arcee-ai/trinity-large-preview", "other/model"],
+      };
+      const agent = {
+        id: "worker",
+        name: legacy, // Only model fields migrate, never arbitrary strings.
+        model: selection,
+        imageModel: legacy,
+        voiceModel: selection,
+        pdfModel: selection,
+        utilityModel: legacy,
+        modelPolicy: { allow: [legacy, "other/model"] },
+        mediaModels: { image: selection, video: legacy, music: selection },
+        heartbeat: { model: legacy, every: "30m" },
+        subagents: { model: selection, allowAgents: ["worker"] },
+        compaction: { model: legacy, memoryFlush: { model: legacy, prompt: legacy } },
+        models: {
+          [legacy]: { alias: "Legacy alias", params: { temperature: 0.4 } },
+          [canonical]: { alias: "Operator alias" },
+          "other/model": { alias: "Unrelated" },
+        },
+      };
+      const expectedAgent = {
+        ...agent,
+        model: repaired,
+        imageModel: canonical,
+        voiceModel: repaired,
+        pdfModel: repaired,
+        utilityModel: canonical,
+        modelPolicy: { allow: [canonical, "other/model"] },
+        mediaModels: { image: repaired, video: canonical, music: repaired },
+        heartbeat: { ...agent.heartbeat, model: canonical },
+        subagents: { ...agent.subagents, model: repaired },
+        compaction: {
+          model: canonical,
+          memoryFlush: { model: canonical, prompt: legacy },
+        },
+        models: {
+          [canonical]: { alias: "Operator alias", params: { temperature: 0.4 } },
+          "other/model": { alias: "Unrelated" },
+        },
+      };
+      const wrapScope = (value: typeof agent) =>
+        scope === "defaults"
+          ? { defaults: value }
+          : scope === "entries"
+            ? { entries: { worker: value, unchanged: { name: "Untouched" } } }
+            : { list: [value, { id: "unchanged", name: "Untouched" }] };
+      // Doctor accepts the shipped list shape before core upgrades it to entries.
+      const config = { ...shippedOpenRouterConfig(), agents: wrapScope(agent) } as OpenClawConfig;
+      const before = structuredClone(config);
+      const result = normalizeCompatibilityConfig({ cfg: config });
+
+      expect(result.config.agents).toEqual(wrapScope(expectedAgent));
+      expect(result.config.models?.providers?.arcee).toBeUndefined();
+      expect(config).toEqual(before);
+      expect(normalizeCompatibilityConfig({ cfg: result.config })).toEqual({
+        config: result.config,
+        changes: [],
+      });
+    },
+  );
+
+  it("preserves canonical model-map precedence regardless of insertion order", () => {
+    const config = shippedOpenRouterConfig();
+    const defaults = config.agents?.defaults;
+    if (!defaults) {
+      throw new Error("expected agent defaults");
+    }
+    defaults.models = {
+      "openrouter/arcee-ai/trinity-large-thinking": { alias: "Operator alias" },
+      "arcee/trinity-large-thinking": { alias: "Legacy alias", params: { temperature: 0.4 } },
+    };
+    expect(normalizeCompatibilityConfig({ cfg: config }).config.agents?.defaults?.models).toEqual({
+      "openrouter/arcee-ai/trinity-large-thinking": {
+        alias: "Operator alias",
+        params: { temperature: 0.4 },
+      },
+    });
+  });
+
   it("leaves direct Arcee configuration unchanged", () => {
     const config = {
+      agents: {
+        defaults: {
+          model: "arcee/trinity-large-thinking",
+          subagents: { model: "arcee/trinity-large-preview" },
+        },
+        entries: { worker: { model: "arcee/trinity-large-thinking" } },
+      },
       models: {
         providers: {
           arcee: {

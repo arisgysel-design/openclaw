@@ -124,6 +124,67 @@ function migrateAgentModelMap(value: unknown): unknown {
   return changed ? next : value;
 }
 
+// Match the model-selection scopes accepted at config mutation boundaries.
+// Walk only these paths, not arbitrary strings in prompts or plugin settings.
+const AGENT_MODEL_SELECTION_PATHS = [
+  ["model"],
+  ["imageModel"],
+  ["voiceModel"],
+  ["pdfModel"],
+  ["utilityModel"],
+  ["mediaModels", "image"],
+  ["mediaModels", "video"],
+  ["mediaModels", "music"],
+  ["heartbeat", "model"],
+  ["subagents", "model"],
+  ["compaction", "model"],
+  ["compaction", "memoryFlush", "model"],
+] as const;
+
+function migrateModelPath(
+  value: unknown,
+  path: readonly string[],
+  migrate: (value: unknown) => unknown,
+): unknown {
+  const record = asObjectRecord(value);
+  const [key, ...rest] = path;
+  if (!record || !key || !Object.hasOwn(record, key)) {
+    return value;
+  }
+  const next = rest.length ? migrateModelPath(record[key], rest, migrate) : migrate(record[key]);
+  return next === record[key] ? value : { ...record, [key]: next };
+}
+
+function migrateAgentModelScope(value: unknown): unknown {
+  let next = value;
+  for (const path of AGENT_MODEL_SELECTION_PATHS) {
+    next = migrateModelPath(next, path, migrateModelSelection);
+  }
+  next = migrateModelPath(next, ["models"], migrateAgentModelMap);
+  return migrateModelPath(next, ["modelPolicy", "allow"], (allow) =>
+    Array.isArray(allow) ? allow.map(migrateModelRef) : allow,
+  );
+}
+
+function migrateAgentScopes(agents: Record<string, unknown>): Record<string, unknown> {
+  const entries = asObjectRecord(agents.entries);
+  return {
+    ...agents,
+    ...(Object.hasOwn(agents, "defaults")
+      ? { defaults: migrateAgentModelScope(agents.defaults) }
+      : {}),
+    ...(entries
+      ? {
+          entries: Object.fromEntries(
+            Object.entries(entries).map(([id, entry]) => [id, migrateAgentModelScope(entry)]),
+          ),
+        }
+      : {}),
+    // Core doctor may not yet have upgraded the shipped list shape to entries.
+    ...(Array.isArray(agents.list) ? { list: agents.list.map(migrateAgentModelScope) } : {}),
+  };
+}
+
 export function normalizeCompatibilityConfig({ cfg }: { cfg: OpenClawConfig }): {
   config: OpenClawConfig;
   changes: string[];
@@ -144,14 +205,6 @@ export function normalizeCompatibilityConfig({ cfg }: { cfg: OpenClawConfig }): 
   });
 
   const agents = asObjectRecord(cfg.agents);
-  const defaults = asObjectRecord(agents?.defaults);
-  const nextDefaults = defaults
-    ? {
-        ...defaults,
-        model: migrateModelSelection(defaults.model),
-        models: migrateAgentModelMap(defaults.models),
-      }
-    : defaults;
 
   return {
     config: {
@@ -160,14 +213,7 @@ export function normalizeCompatibilityConfig({ cfg }: { cfg: OpenClawConfig }): 
         ...models,
         providers: nextProviders,
       } as OpenClawConfig["models"],
-      ...(agents
-        ? {
-            agents: {
-              ...agents,
-              ...(nextDefaults ? { defaults: nextDefaults } : {}),
-            } as OpenClawConfig["agents"],
-          }
-        : {}),
+      ...(agents ? { agents: migrateAgentScopes(agents) as OpenClawConfig["agents"] } : {}),
     },
     changes: [
       `Moved the OpenRouter-backed Arcee catalog from ${LEGACY_PROVIDER_PATH} to ${CANONICAL_PROVIDER_PATH} and repaired its model references.`,
